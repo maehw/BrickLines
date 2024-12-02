@@ -443,7 +443,7 @@ class BrickLines:
 
     def set_outputs(self, bit_pattern, wait_time=None):
         # print(f"  will set the outputs to {bit_pattern} & wait for {wait_time}")  # debugging only
-        tx = bit_pattern.to_bytes(1)
+        tx = bit_pattern.to_bytes(1, byteorder='little')  # don't care about byte order because it's a single byte anyway
         self.serial_connection.write(tx)
         # wait afterwards
         if wait_time is not None:
