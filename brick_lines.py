@@ -138,7 +138,7 @@ class BrickLines:
         self.serial_connection.reset_output_buffer()
         # turn outputs off initially (first call always seems to run into timeout);
         # but afterward it is okay; so do it twice during connection establishment
-        self.set_outputs(0, serial_timeout=1)
+        self.set_outputs(0, serial_timeout=0.5)
         self.set_outputs(0)
 
     def from_file(self, filename, file_format=BrickFileFormat.AUTO_DETECT):
