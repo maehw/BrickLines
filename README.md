@@ -9,7 +9,9 @@ The idea is that the old materials (both the bricks and the teaching resources) 
 ## Prerequisites
 
 * A Python 3 environment
-* Python dependencies: package `colorama` so that terminal output can be highlighted
+* Python dependencies:
+  * package `pyserial` for serial communication
+  * package `colorama` so that terminal output can be highlighted
 * If you want to _run_ Lines programs (and not only print them):
   * LEGO® Interface A
   * Arduino Nano acting as virtual COM port (using USB CDC) which translates between serial communication (PC) and parallel communication (Interface A)
@@ -144,7 +146,9 @@ This allows to build the following control structures:
 * Add support for printing a Lines program in the same format as LEGO® Lines did
 * Add support for the save files of the IBM PC/DOS
 * Improve redrawing as currently the whole screen is redrawn and this can take up quite some time
-* Find out what the default waiting time in LEGO® Lines was, i.e. how long to wait after setting the outputs before continuing execution in the next line
+* Clarify original LEGO® Lines' behaviour:
+  * Find out what the default waiting time is (when no value has been provided) after setting the outputs before continuing execution in the next line
+  * Find out whether the last output value "sticks" after the program terminates or all outputs are turned off
 
 ## Contributing
 

@@ -21,10 +21,12 @@ from enum import Enum
 
 colorama_init()
 
+
 class BrickFileFormat(Enum):
     AUTO_DETECT = 1
     COMMODORE = 2
     APPLE_II = 3
+
 
 class BrickInstruction:
     def __init__(self, label, in7_condition, in6_condition, out_bit_pattern, value):
@@ -67,42 +69,55 @@ class BrickInstruction:
             r += f"{self.value: <5}"
         return r
 
+
 class BrickInstructionSetOutput(BrickInstruction):
     def __init__(self, label, out_bit_pattern, value=None):
         super().__init__(label, None, None, out_bit_pattern, value)
+
 
 class BrickInstructionRepeat(BrickInstruction):
     def __init__(self, value=None):
         super().__init__("REPEAT", None, None, None, value)
 
+
 class BrickInstructionRepeatEnd(BrickInstruction):
     def __init__(self, label, in7_condition, in6_condition):
         super().__init__(label, in7_condition, in6_condition, None, None)
 
+
 class BrickInstructionUntil(BrickInstructionRepeatEnd):
     def __init__(self, in7_condition, in6_condition):
-        assert (in7_condition is not None) or (in6_condition is not None), "No real condition present, cannot accept any value for both IN7 and IN6"
+        assert (in7_condition is not None) or (
+                    in6_condition is not None), ("No real condition present, cannot accept any value for "
+                                                 "both IN7 and IN6")
         super().__init__("UNTIL", in7_condition, in6_condition)
+
 
 class BrickInstructionEndrepeat(BrickInstructionRepeatEnd):
     def __init__(self):
         super().__init__("ENDREPEAT", None, None)
 
+
 class BrickInstructionForever(BrickInstructionRepeatEnd):
     def __init__(self):
         super().__init__("FOREVER", None, None)
+
 
 class BrickInstructionIf(BrickInstruction):
     def __init__(self, in7_condition, in6_condition):
         super().__init__("IF", in7_condition, in6_condition, None, None)
 
+
 class BrickInstructionEndif(BrickInstruction):
     def __init__(self):
         super().__init__("ENDIF", None, None, None, None)
 
+
 class BrickInstructionCount(BrickInstruction):
     def __init__(self, in7_condition, in6_condition, count):
-        assert (in7_condition is not None) or (in6_condition is not None), "No real condition present, cannot accept any value for both IN7 and IN6"
+        assert (in7_condition is not None) or (
+                    in6_condition is not None), ("No real condition present, cannot accept any value for "
+                                                 "both IN7 and IN6")
         super().__init__("COUNT", in7_condition, in6_condition, None, count)
 
 
@@ -110,6 +125,7 @@ class BrickLines:
     def __init__(self):
         self.instructions = []
         self.serial_connection = None
+        self.last_out_bit_pattern = None
 
     def connect(self, serial_port):
         import serial
@@ -117,12 +133,18 @@ class BrickLines:
         if self.serial_connection is not None:
             self.serial_connection.close()
 
-        self.serial_connection = serial.Serial(serial_port, 19200)  # TODO check timeout
-        self.set_outputs(0)  # turn outputs off initially
+        self.serial_connection = serial.Serial(serial_port, baudrate=19200)
+        self.serial_connection.reset_input_buffer()
+        self.serial_connection.reset_output_buffer()
+        # turn outputs off initially (first call always seems to run into timeout);
+        # but afterward it is okay; so do it twice during connection establishment
+        self.set_outputs(0, serial_timeout=1)
+        self.set_outputs(0)
 
     def from_file(self, filename, file_format=BrickFileFormat.AUTO_DETECT):
         assert isinstance(file_format, BrickFileFormat)
-        assert file_format in [BrickFileFormat.AUTO_DETECT, BrickFileFormat.COMMODORE, BrickFileFormat.APPLE_II], "File format not supported"
+        assert file_format in [BrickFileFormat.AUTO_DETECT, BrickFileFormat.COMMODORE,
+                               BrickFileFormat.APPLE_II], "File format not supported"
         assert os.path.isfile(filename), "Invalid file path"
         self.instructions = []
         if file_format == BrickFileFormat.AUTO_DETECT:
@@ -138,8 +160,8 @@ class BrickLines:
         with open(filename, "rb") as file:
             content = file.read()
             if len(content) == 762 and \
-                (content[0x280:0x2D1] == b'\x00' * 0x51) and \
-                (content[0x2F9:] == b'\xff'):
+                    (content[0x280:0x2D1] == b'\x00' * 0x51) and \
+                    (content[0x2F9:] == b'\xff'):
                 is_commodore = True
         if is_commodore:
             self.from_file_commodore(filename)
@@ -154,28 +176,30 @@ class BrickLines:
         with open(filename, "rb") as file:
             content = file.read()
             assert len(content) == 762  # expecting a fixed length file independent of its LEGO Lines contents
-            assert content[0x280:0x2D1] == b'\x00' * 0x51  # these bytes are always zero (unused reserved part of the file?)
+            assert content[
+                   0x280:0x2D1] == b'\x00' * 0x51  # these bytes are always zero (unused reserved part of the file?)
             assert content[0x2F9:] == b'\xff'
             bit_patterns = content[0x2D1:-1]
             assert len(bit_patterns) == num_llines_max
-            num_llines_free = bit_patterns.count(
-                b'\xff')  # assuming that the b'\xff' bytes only come as block at the end, it's enough to simply count them!
+            # assuming that the b'\xff' bytes only come as block at the end, it's enough to simply count them!
+            num_llines_free = bit_patterns.count(b'\xff')
             num_llines_used = num_llines_max - num_llines_free
             # debugging info
-            #print(f"Number of llines used: {num_llines_used}")
-            #print(f"Number of llines free: {num_llines_free}")
+            # print(f"Number of llines used: {num_llines_used}")
+            # print(f"Number of llines free: {num_llines_free}")
+            # this section of the file should also be unused:
             assert content[
-                   num_llines_used * lline_length: 0x280] == num_llines_free * lline_length * b'\x00'  # this area should also be unused
+                   num_llines_used * lline_length: 0x280] == num_llines_free * lline_length * b'\x00'
             for lline_no in range(num_llines_used):
                 lline = content[lline_no * lline_length: (lline_no + 1) * lline_length]
                 label = lline[:lline_label_length_max].rstrip(b'\x00').decode('ascii')
                 value = lline[lline_label_length_max:].rstrip(b'\x00').decode('ascii')
                 converted_value = self.convert_value(value)
                 # print only for debugging
-                #print(f"{label: <{lline_label_length_max}} {bit_patterns[lline_no]: <3} ", end="")
-                #if converted_value:
+                # print(f"{label: <{lline_label_length_max}} {bit_patterns[lline_no]: <3} ", end="")
+                # if converted_value:
                 #    print(f"{converted_value: <4}")
-                #else:
+                # else:
                 #    print()
                 if label in ['REPEAT', 'UNTIL', 'ENDREPEAT', 'FOREVER', 'IF', 'ENDIF', 'COUNT']:
                     # print("  Keyword detected!")
@@ -224,11 +248,11 @@ class BrickLines:
             lline_type = int(flines[fline_no + 2])
             bit_pattern = int(flines[fline_no + 3])
             # debugging only
-            #print(f"{label: <13}{pp} tp={lline_type}, bp={bit_pattern}", end="")
-            #if number:
-            #    print(f"   {number}")
-            #else:
-            #    print()
+            # print(f"{label: <13}{pp} tp={lline_type}, bp={bit_pattern}", end="")
+            # if number:
+            #     print(f"   {number}")
+            # else:
+            #     print()
             self.append(self.convert2instruction_apple(label, lline_type, bit_pattern, number))
 
     def convert2instruction_apple(self, label, lline_type, b, value):
@@ -322,12 +346,12 @@ class BrickLines:
         # but making some brave assumptions here: bits 7 and 8 hold the values where bits 1 and 0 tell to ignore or not
 
         # simple mapping:
-        #in7_condition = None
-        #in6_condition = None
-        #if bit_pattern == 0x81:
-        #    in7_condition = True
-        #elif bit_pattern == 0x42:
-        #    in6_condition = True
+        # in7_condition = None
+        # in6_condition = None
+        # if bit_pattern == 0x81:
+        #     in7_condition = True
+        # elif bit_pattern == 0x42:
+        #     in6_condition = True
 
         if bit_pattern & (1 << 1):
             # ignore in7 ("any")
@@ -352,20 +376,20 @@ class BrickLines:
         # - the two least significant bits contain the expected bits
         # - the two more significant bits contain a pattern of bits to be ignored ("any value")
         assert bit_pattern in [0,  # 0b00'00 = '00'
-                     1,  # 0b00'01 = '01'
-                     2,  # 0b00'10 = '10'
-                     3,  # 0b00'11 = '11'
-                     4,  # 0b01'00 = '0X'
-                     # 5,  # 0b01'01 = '0X' (not used)
-                     6,  # 0b01'10 = '1X'
-                     # 7,  # 0b01'11 = '1X' (not used)
-                     8,  # 0b10'00 = 'X0'
-                     9,  # 0b10'01 = 'X1'
-                     10,  # 0b10'10 = 'X0' (not used)
-                     # 11, # 0b10'11 = 'X1' (not used)
-                     # 12, # 0b11'00 = 'XX' (not allowed/ does not make sense)
-                     # any other values from here on do not make sense either
-                     ]
+                               1,  # 0b00'01 = '01'
+                               2,  # 0b00'10 = '10'
+                               3,  # 0b00'11 = '11'
+                               4,  # 0b01'00 = '0X'
+                               # 5,  # 0b01'01 = '0X' (not used)
+                               6,  # 0b01'10 = '1X'
+                               # 7,  # 0b01'11 = '1X' (not used)
+                               8,  # 0b10'00 = 'X0'
+                               9,  # 0b10'01 = 'X1'
+                               10,  # 0b10'10 = 'X0' (not used)
+                               # 11, # 0b10'11 = 'X1' (not used)
+                               # 12, # 0b11'00 = 'XX' (not allowed/ does not make sense)
+                               # any other values from here on do not make sense either
+                               ]
 
         if bit_pattern & (1 << 3):
             # ignore in7 ("any")
@@ -385,14 +409,14 @@ class BrickLines:
 
     @staticmethod
     def show_header():
-        r =  "                      ┌ IN ───┬ OUT ──────────────────┐\n"
+        r = "                      ┌ IN ───┬ OUT ──────────────────┐\n"
         r += "        BRICK Lines   ├───┬───┼───┬───┬───┬───┬───┬───┤\n"
         r += "                      │ 7 │ 6 │ 5 │ 4 │ 3 │ 2 │ 1 │ 0 │\n"
         r += "┌─ # ──┬─ LABEL ──────┼───┼───┼───┼───┼───┼───┼───┼───┼───────┐\n"
         # some commented dummy lines to play with the layout
-        #r += "│ > 99 │ 0123456789AB │▒▒▒│▒▒▒│ 1 │ 0 │ 1 │ 0 │ 1 │ 0 │ 1234  │\n"
-        #r += "├──────┼──────────────┼───┼───┼───┼───┼───┼───┼───┼───┼───────┤\n"
-        #r += "└──────┴──────────────┴───┴───┴───┴───┴───┴───┴───┴───┴───────┘\n"
+        # r += "│ > 99 │ 0123456789AB │▒▒▒│▒▒▒│ 1 │ 0 │ 1 │ 0 │ 1 │ 0 │ 1234  │\n"
+        # r += "├──────┼──────────────┼───┼───┼───┼───┼───┼───┼───┼───┼───────┤\n"
+        # r += "└──────┴──────────────┴───┴───┴───┴───┴───┴───┴───┴───┴───────┘\n"
         return r
 
     @staticmethod
@@ -414,7 +438,7 @@ class BrickLines:
         else:
             r += " "
 
-        r += f" {line_no+1: >2} │ " + i.__repr__() + " │\n"
+        r += f" {line_no + 1: >2} │ " + i.__repr__() + " │\n"
 
         if is_active:
             r += Style.RESET_ALL
@@ -435,16 +459,23 @@ class BrickLines:
         print(r)
 
     # for debugging only; this method steps through all lines and marks them as active
-    #def demo(self):
+    # def demo(self):
     #    for line_no in range(0, len(self.instructions)):
     #        self.print(active_line_no=line_no)
     #        if line_no < len(self.instructions)-1:
     #            sleep(2)
 
-    def set_outputs(self, bit_pattern, wait_time=None):
+    def set_outputs(self, bit_pattern, wait_time=None, serial_timeout=None):
         # print(f"  will set the outputs to {bit_pattern} & wait for {wait_time}")  # debugging only
-        tx = bit_pattern.to_bytes(1, byteorder='little')  # don't care about byte order because it's a single byte anyway
-        self.serial_connection.write(tx)
+        # don't care about byte order because it's a single byte anyway
+        tx = bit_pattern.to_bytes(1, byteorder='little')
+        num_transmitted_bytes = self.serial_connection.write(tx)
+        assert num_transmitted_bytes == 1
+        self.last_out_bit_pattern = tx
+        self.serial_connection.timeout = serial_timeout
+        # read dummy byte but ignore its contents as there's currently no interest in the inputs
+        self.serial_connection.read(1)
+
         # wait afterwards
         if wait_time is not None:
             sleep(wait_time)
@@ -453,7 +484,12 @@ class BrickLines:
             sleep(1)
 
     def read_inputs(self):
-        rx = int.from_bytes(self.serial_connection.read())  # function call will block when serial connection timeout is not set
+        # resend last output bit pattern so that the output does not change but the inputs can be read
+        tx = self.last_out_bit_pattern
+        num_transmitted_bytes = self.serial_connection.write(tx)
+        assert num_transmitted_bytes == 1
+
+        rx = int.from_bytes(self.serial_connection.read(1), byteorder='little')
         in7 = bool(rx & (1 << 7))
         in6 = bool(rx & (1 << 6))
         return in7, in6
@@ -524,7 +560,7 @@ class BrickLines:
                     line_no += 1
                 else:
                     # go to end of if condition, look for the next ENDIF
-                    for endif_candidate_line_no in range(line_no+1, end_line_no):
+                    for endif_candidate_line_no in range(line_no + 1, end_line_no):
                         if isinstance(self.instructions[endif_candidate_line_no], BrickInstructionEndif):
                             line_no = endif_candidate_line_no  # or shall we go to +1 directly?
                             break  # do not keep searching for other candidates
@@ -555,7 +591,7 @@ class BrickLines:
                 assert False, "Unknown instruction"
             if line_no >= end_line_no:
                 running = False
-                print(f"Hit program end: {line_no} >= {end_line_no}")
+                # print(f"Hit program end: {line_no} >= {end_line_no}")  # debugging only
                 self.print()
 
     @staticmethod
@@ -628,11 +664,14 @@ class BrickLines:
             assert False, "Software developer made a dumb logical error"
         return condition
 
+
 if __name__ == '__main__':
     import argparse
+
     parser = argparse.ArgumentParser(description="BRICK Lines")
     parser.add_argument("-f", "--file", required=True, help="Input file name")
-    parser.add_argument("-s", "--serial-port", help="Name of serial device to Interface A; required to run a program on")
+    parser.add_argument("-s", "--serial-port",
+                        help="Name of serial device to Interface A; required to run a program on")
     args = parser.parse_args()
 
     p = BrickLines()
