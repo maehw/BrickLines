@@ -14,7 +14,7 @@ The idea is that the old materials (both the bricks and the teaching resources) 
   * package `colorama` so that terminal output can be highlighted
 * If you want to _run_ Lines programs (and not only print them):
   * LEGO® Interface A
-  * Arduino Nano acting as virtual COM port (using USB CDC) which translates between serial communication (PC) and parallel communication (Interface A)
+  * Arduino Nano acting as virtual COM port (using USB CDC) which translates between serial communication (PC) and parallel communication (Interface A); see also: [./hardware/serial2parallel_converter/README.md](./hardware/serial2parallel_converter/README.md)
   * wires and 4.5V peripherals
 
 Need help? Feel free to comment in the Eurobricks forum thread [LEGO Interface A (9750/9771) – LEGO Technic Control 1 (TC1) reference/ideas thread](https://www.eurobricks.com/forum/index.php?/forums/topic/192941-lego-interface-a-97509771-%E2%80%93-lego-technic-control-1-tc1-referenceideas-thread) or contact the author here on GitHub or mastodon ([@maehw@chaos.social](https://chaos.social/@maehw)).
