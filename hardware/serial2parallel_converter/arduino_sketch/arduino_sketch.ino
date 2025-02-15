@@ -50,9 +50,9 @@ void loop() {
 
     outputs = Serial.read();
     PORTD = outputs << 2;                     // Arduino output port (0-5 on 9750 = PORTD 2-7)                                                                                         
-    Serial.write((inputs << 6) | outputs);
+    Serial.write((inputs << 6) | (outputs & 0x3F));
                                               // Reply to TCLogo_s: 
-                                              // Read the output status, shift right by 2 = bits 0-5.
+                                              // Echo the output status (only bits 0-5 should be touched, hence the masking)
                                               // Add bits 6+7 by shifting the port B input bits left by 6 
   }
 }
